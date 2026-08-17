@@ -5,7 +5,7 @@ import os
 class StrategyPDF(FPDF):
     def header(self):
         self.set_font('Arial', 'B', 16)
-        self.set_text_color(220, 50, 50) # Rouge F1
+        self.set_text_color(220, 50, 50)
         self.cell(0, 10, 'F1 PIT WALL OS - PRE-RACE STRATEGY BRIEF', 0, 1, 'C')
         self.set_draw_color(220, 50, 50)
         self.line(10, 22, 200, 22)
@@ -21,44 +21,43 @@ def generate_pdf_report(circuit_name, best_strat, total_laps, pit_loss, time_str
     pdf = StrategyPDF()
     pdf.add_page()
     
-    # Informations du Circuit
+    # Circuit context
     pdf.set_font('Arial', 'B', 14)
     pdf.set_text_color(0, 0, 0)
-    pdf.cell(0, 10, f'GRAND PRIX : {circuit_name.upper()}', 0, 1)
+    pdf.cell(0, 10, f'GRAND PRIX: {circuit_name.upper()}', 0, 1)
     
     pdf.set_font('Arial', '', 12)
-    pdf.cell(0, 8, f'Distance de course : {total_laps} tours', 0, 1)
-    pdf.cell(0, 8, f'Perte aux stands moyenne : {pit_loss} secondes', 0, 1)
+    pdf.cell(0, 8, f'Race distance: {total_laps} laps', 0, 1)
+    pdf.cell(0, 8, f'Average pit loss: {pit_loss} seconds', 0, 1)
     pdf.ln(5)
     
-    # Stratégie Optimale
+    # Stratégie DP
     pdf.set_font('Arial', 'B', 14)
-    pdf.set_text_color(0, 102, 204) # Bleu
-    pdf.cell(0, 10, 'STRATEGIE OPTIMALE RECOMMANDEE (Dynamic Programming)', 0, 1)
+    pdf.set_text_color(0, 102, 204)
+    pdf.cell(0, 10, 'OPTIMAL RACE STRATEGY (DP MODEL)', 0, 1)
     
     pdf.set_font('Arial', '', 12)
     pdf.set_text_color(0, 0, 0)
     
     compounds_str = " -> ".join(best_strat['compounds'])
-    pits_str = ", ".join(map(str, best_strat['pit_laps'])) if best_strat['pit_laps'] else "Aucun"
+    pits_str = ", ".join(map(str, best_strat['pit_laps'])) if best_strat['pit_laps'] else "None"
     
-    pdf.cell(0, 8, f'Nombre d\'arrets : {best_strat["stops"]}', 0, 1)
-    pdf.cell(0, 8, f'Sequence de gommes : {compounds_str}', 0, 1)
-    pdf.cell(0, 8, f'Fenêtres d\'arrets (Tours) : {pits_str}', 0, 1)
-    pdf.cell(0, 8, f'Temps de course estime : {time_str}', 0, 1)
+    pdf.cell(0, 8, f'Total stops: {best_strat["stops"]}', 0, 1)
+    pdf.cell(0, 8, f'Tyre sequence: {compounds_str}', 0, 1)
+    pdf.cell(0, 8, f'Pit windows (Lap): {pits_str}', 0, 1)
+    pdf.cell(0, 8, f'Estimated Race Time: {time_str}', 0, 1)
     pdf.ln(10)
     
-    # Insertion du Graphique si existant
+    # Pace chart
     if fig_pace:
         pdf.set_font('Arial', 'B', 14)
-        pdf.cell(0, 10, 'PROJECTION DU RYTHME (PACE)', 0, 1)
-        # Sauvegarde temporaire de l'image (sans fond noir !)
+        pdf.cell(0, 10, 'PACE PROJECTION', 0, 1)
+        
         with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmpfile:
             fig_pace.savefig(tmpfile.name, format="png", bbox_inches="tight")
             pdf.image(tmpfile.name, x=10, w=190)
         os.remove(tmpfile.name)
         
-    # Export sécurisé en bytes pour Streamlit
     with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_pdf:
         pdf.output(tmp_pdf.name)
         with open(tmp_pdf.name, "rb") as f:

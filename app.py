@@ -2,24 +2,20 @@ import streamlit as st
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-import seaborn as sns # NOUVEAU : Import de seaborn
+import seaborn as sns
 import fastf1.plotting
 import re
 
-# Application du thème clair et professionnel globalement
-sns.set_theme(style="whitegrid")
-
-# Importation de nos propres modules modulaires
 from optimization import (solve_dp, optimize_all_strategies, get_pit_loss_for_lap, 
                           calculate_stint_time, get_base_lap_time, run_monte_carlo, evaluate_fixed_strategy)
 from telemetry import (load_fastf1_data, fit_degradation_models, get_head_to_head_laps,
                        get_actual_strategy, modele_lineaire, modele_quadratique, modele_exponentiel)
 from report import generate_pdf_report
 
-# --- CONFIGURATION DE LA PAGE STREAMLIT ---
+sns.set_theme(style="whitegrid")
 st.set_page_config(page_title="F1 Pit Wall OS", page_icon="🏁", layout="wide")
 
-# Initialisation de la mémoire de session
+# State init
 if 'custom_strats' not in st.session_state:
     st.session_state.custom_strats = [('Medium', 'Hard'), ('Soft', 'Hard'), ('Soft', 'Medium', 'Soft')]
 if 'total_laps' not in st.session_state:
@@ -27,32 +23,32 @@ if 'total_laps' not in st.session_state:
 if 'pit_loss_time' not in st.session_state:
     st.session_state.pit_loss_time = 28.0
 
-# --- BASE DE DONNÉES DES CIRCUITS F1 ---
+# Database circuits (Translated to English)
 CIRCUITS_DATA = {
-    "Bahreïn (Sakhir)": {"laps": 57, "pit_loss": 24.0, "length": 5.412, "abrasion": "Élevée", "record": "1:31.447"},
-    "Arabie Saoudite (Jeddah)": {"laps": 50, "pit_loss": 22.0, "length": 6.174, "abrasion": "Moyenne", "record": "1:30.734"},
-    "Australie (Melbourne)": {"laps": 58, "pit_loss": 20.0, "length": 5.278, "abrasion": "Moyenne", "record": "1:19.815"},
-    "Japon (Suzuka)": {"laps": 53, "pit_loss": 23.0, "length": 5.807, "abrasion": "Très Élevée", "record": "1:30.983"},
-    "Chine (Shanghai)": {"laps": 56, "pit_loss": 24.0, "length": 5.451, "abrasion": "Élevée", "record": "1:32.238"},
-    "USA (Miami)": {"laps": 57, "pit_loss": 22.0, "length": 5.412, "abrasion": "Moyenne", "record": "1:29.708"},
-    "Émilie-Romagne (Imola)": {"laps": 63, "pit_loss": 28.0, "length": 4.909, "abrasion": "Moyenne", "record": "1:15.484"},
-    "Monaco (Monte-Carlo)": {"laps": 78, "pit_loss": 25.0, "length": 3.337, "abrasion": "Très Faible", "record": "1:12.909"},
-    "Canada (Montréal)": {"laps": 70, "pit_loss": 18.0, "length": 4.361, "abrasion": "Faible", "record": "1:13.078"},
-    "Espagne (Barcelone)": {"laps": 66, "pit_loss": 23.0, "length": 4.657, "abrasion": "Élevée", "record": "1:16.330"},
-    "Autriche (Spielberg)": {"laps": 71, "pit_loss": 20.0, "length": 4.318, "abrasion": "Moyenne", "record": "1:05.619"},
-    "Royaume-Uni (Silverstone)": {"laps": 52, "pit_loss": 28.0, "length": 5.891, "abrasion": "Élevée", "record": "1:27.097"},
-    "Hongrie (Hungaroring)": {"laps": 70, "pit_loss": 20.0, "length": 4.381, "abrasion": "Moyenne", "record": "1:16.627"},
-    "Belgique (Spa-Francorchamps)": {"laps": 44, "pit_loss": 24.0, "length": 7.004, "abrasion": "Élevée", "record": "1:46.286"},
-    "Pays-Bas (Zandvoort)": {"laps": 72, "pit_loss": 18.0, "length": 4.259, "abrasion": "Élevée", "record": "1:11.097"},
-    "Italie (Monza)": {"laps": 53, "pit_loss": 24.0, "length": 5.793, "abrasion": "Faible", "record": "1:21.046"},
-    "Azerbaïdjan (Bakou)": {"laps": 51, "pit_loss": 21.0, "length": 6.003, "abrasion": "Faible", "record": "1:43.009"},
-    "Singapour (Marina Bay)": {"laps": 62, "pit_loss": 29.0, "length": 4.940, "abrasion": "Moyenne", "record": "1:35.867"},
-    "USA (Austin)": {"laps": 56, "pit_loss": 20.0, "length": 5.513, "abrasion": "Élevée", "record": "1:36.169"},
-    "Mexique (Mexico)": {"laps": 71, "pit_loss": 22.0, "length": 4.304, "abrasion": "Faible", "record": "1:17.774"},
-    "Brésil (Interlagos)": {"laps": 71, "pit_loss": 24.0, "length": 4.309, "abrasion": "Moyenne", "record": "1:10.540"},
-    "USA (Las Vegas)": {"laps": 50, "pit_loss": 20.0, "length": 6.201, "abrasion": "Faible", "record": "1:35.490"},
-    "Qatar (Lusail)": {"laps": 57, "pit_loss": 25.0, "length": 5.419, "abrasion": "Très Élevée", "record": "1:24.319"},
-    "Abou Dabi (Yas Marina)": {"laps": 58, "pit_loss": 23.0, "length": 5.281, "abrasion": "Moyenne", "record": "1:26.103"}
+    "Bahrain (Sakhir)": {"laps": 57, "pit_loss": 24.0, "length": 5.412, "abrasion": "High", "record": "1:31.447"},
+    "Saudi Arabia (Jeddah)": {"laps": 50, "pit_loss": 22.0, "length": 6.174, "abrasion": "Medium", "record": "1:30.734"},
+    "Australia (Melbourne)": {"laps": 58, "pit_loss": 20.0, "length": 5.278, "abrasion": "Medium", "record": "1:19.815"},
+    "Japan (Suzuka)": {"laps": 53, "pit_loss": 23.0, "length": 5.807, "abrasion": "Very High", "record": "1:30.983"},
+    "China (Shanghai)": {"laps": 56, "pit_loss": 24.0, "length": 5.451, "abrasion": "High", "record": "1:32.238"},
+    "USA (Miami)": {"laps": 57, "pit_loss": 22.0, "length": 5.412, "abrasion": "Medium", "record": "1:29.708"},
+    "Emilia-Romagna (Imola)": {"laps": 63, "pit_loss": 28.0, "length": 4.909, "abrasion": "Medium", "record": "1:15.484"},
+    "Monaco (Monte-Carlo)": {"laps": 78, "pit_loss": 25.0, "length": 3.337, "abrasion": "Very Low", "record": "1:12.909"},
+    "Canada (Montreal)": {"laps": 70, "pit_loss": 18.0, "length": 4.361, "abrasion": "Low", "record": "1:13.078"},
+    "Spain (Barcelona)": {"laps": 66, "pit_loss": 23.0, "length": 4.657, "abrasion": "High", "record": "1:16.330"},
+    "Austria (Spielberg)": {"laps": 71, "pit_loss": 20.0, "length": 4.318, "abrasion": "Medium", "record": "1:05.619"},
+    "Great Britain (Silverstone)": {"laps": 52, "pit_loss": 28.0, "length": 5.891, "abrasion": "High", "record": "1:27.097"},
+    "Hungary (Hungaroring)": {"laps": 70, "pit_loss": 20.0, "length": 4.381, "abrasion": "Medium", "record": "1:16.627"},
+    "Belgium (Spa-Francorchamps)": {"laps": 44, "pit_loss": 24.0, "length": 7.004, "abrasion": "High", "record": "1:46.286"},
+    "Netherlands (Zandvoort)": {"laps": 72, "pit_loss": 18.0, "length": 4.259, "abrasion": "High", "record": "1:11.097"},
+    "Italy (Monza)": {"laps": 53, "pit_loss": 24.0, "length": 5.793, "abrasion": "Low", "record": "1:21.046"},
+    "Azerbaijan (Baku)": {"laps": 51, "pit_loss": 21.0, "length": 6.003, "abrasion": "Low", "record": "1:43.009"},
+    "Singapore (Marina Bay)": {"laps": 62, "pit_loss": 29.0, "length": 4.940, "abrasion": "Medium", "record": "1:35.867"},
+    "USA (Austin)": {"laps": 56, "pit_loss": 20.0, "length": 5.513, "abrasion": "High", "record": "1:36.169"},
+    "Mexico (Mexico City)": {"laps": 71, "pit_loss": 22.0, "length": 4.304, "abrasion": "Low", "record": "1:17.774"},
+    "Brazil (Interlagos)": {"laps": 71, "pit_loss": 24.0, "length": 4.309, "abrasion": "Medium", "record": "1:10.540"},
+    "USA (Las Vegas)": {"laps": 50, "pit_loss": 20.0, "length": 6.201, "abrasion": "Low", "record": "1:35.490"},
+    "Qatar (Lusail)": {"laps": 57, "pit_loss": 25.0, "length": 5.419, "abrasion": "Very High", "record": "1:24.319"},
+    "Abu Dhabi (Yas Marina)": {"laps": 58, "pit_loss": 23.0, "length": 5.281, "abrasion": "Medium", "record": "1:26.103"}
 }
 
 def apply_to_sidebar(comp, base, a, b2):
@@ -62,38 +58,36 @@ def apply_to_sidebar(comp, base, a, b2):
     st.session_state[f"{p}a"] = float(a)
     st.session_state[f"{p}b2"] = float(b2)
 
-# ==========================================
-# BARRE LATÉRALE - MENU ET CONFIGURATION
-# ==========================================
+# --- UI Sidebar ---
 st.sidebar.title("🏁 Pit Wall OS")
 st.sidebar.markdown("---")
 
 page = st.sidebar.radio("🧭 NAVIGATION", [
     "🏠 Mission Control",
-    "🛠️ Constructeur de Stratégie",
-    "🎲 Monte-Carlo & Risques",
-    "📈 Modélisation Télémétrie",
-    "🥊 Face-à-Face & Validation",
-    "🔄 Historique des Stratégies",
-    "🌍 Base de données Circuits"
+    "🛠️ Strategy Builder",
+    "🎲 Monte Carlo & Risk",
+    "📈 Telemetry Modeling",
+    "🥊 Validation & H2H",
+    "🔄 Track History",
+    "🌍 Track Database"
 ])
 st.sidebar.markdown("---")
 
-st.sidebar.header("⚙️ Paramètres du GP")
-selected_circuit = st.sidebar.selectbox("Sélectionnez la course :", list(CIRCUITS_DATA.keys()))
+st.sidebar.header("⚙️ GP Parameters")
+selected_circuit = st.sidebar.selectbox("Select Race:", list(CIRCUITS_DATA.keys()))
 TOTAL_LAPS = CIRCUITS_DATA[selected_circuit]["laps"]
 PIT_LOSS_TIME = CIRCUITS_DATA[selected_circuit]["pit_loss"]
 
-FUEL_EFFECT = st.sidebar.slider("Effet Carburant (gain en s/tour)", min_value=0.0, max_value=0.15, value=0.06, step=0.01)
+FUEL_EFFECT = st.sidebar.slider("Fuel Effect (s/lap gain)", min_value=0.0, max_value=0.15, value=0.06, step=0.01)
 
-with st.sidebar.expander("🚓 Voiture de Sécurité (SC)", expanded=False):
-    sc_active = st.checkbox("Activer un événement SC", value=False)
+with st.sidebar.expander("🚓 Safety Car (SC)", expanded=False):
+    sc_active = st.checkbox("Enable SC event", value=False)
     if sc_active:
-        sc_start = st.slider("Tour de déploiement", 1, TOTAL_LAPS, 20)
-        sc_duration = st.slider("Durée de la SC (tours)", 1, 10, 3)
-        sc_pit_loss = st.slider("Perte aux stands sous SC (s)", 10.0, PIT_LOSS_TIME, 15.0, 0.5)
-        sc_slowdown = st.slider("Ralentissement du peloton (s/tour)", 10.0, 50.0, 30.0, 1.0)
-        sc_deg_factor = st.slider("Facteur d'usure SC (0.25 = 25%)", 0.0, 1.0, 0.25, 0.05)
+        sc_start = st.slider("Deployment Lap", 1, TOTAL_LAPS, 20)
+        sc_duration = st.slider("SC Duration (laps)", 1, 10, 3)
+        sc_pit_loss = st.slider("SC Pit Loss (s)", 10.0, PIT_LOSS_TIME, 15.0, 0.5)
+        sc_slowdown = st.slider("Field Slowdown (s/lap)", 10.0, 50.0, 30.0, 1.0)
+        sc_deg_factor = st.slider("SC Wear Factor", 0.0, 1.0, 0.25, 0.05)
     else:
         sc_start, sc_duration, sc_pit_loss, sc_slowdown, sc_deg_factor = -1, 0, PIT_LOSS_TIME, 0.0, 1.0
 
@@ -103,26 +97,26 @@ sc_config = {
 }
 
 st.sidebar.markdown("---")
-st.sidebar.header("🏎️ Propriétés des Gommes")
-deg_model = st.sidebar.selectbox("Loi Mathématique de Dégradation", ["Quadratique", "Exponentiel", "Linéaire"])
+st.sidebar.header("🏎️ Tyre Properties")
+deg_model = st.sidebar.selectbox("Degradation Model", ["Quadratique", "Exponentiel", "Linéaire"])
 
-with st.sidebar.expander("🔴 Pneus Soft (Tendres)", expanded=False):
-    s_b = st.number_input("Temps de base initial (s)", value=93.8, key='sb', step=0.1)
-    s_a = st.number_input("Usure linéaire (Paramètre a)", value=0.148, format="%.3f", key='sa', step=0.01)
-    s_b2 = st.number_input("Chute thermique (Paramètre b)", value=0.002, format="%.4f", key='sb2', step=0.001)
-    s_w = st.number_input("Pénalité de Warm-up (s)", value=1.0, step=0.5, key='sw')
+with st.sidebar.expander("🔴 Soft Tyres", expanded=False):
+    s_b = st.number_input("Base time (s) - Soft", value=93.8, key='sb', step=0.1)
+    s_a = st.number_input("Parameter a - Soft", value=0.148, format="%.3f", key='sa', step=0.01)
+    s_b2 = st.number_input("Parameter b - Soft", value=0.002, format="%.4f", key='sb2', step=0.001)
+    s_w = st.number_input("Warm-up (s) - Soft", value=1.0, step=0.5, key='sw')
 
-with st.sidebar.expander("🟡 Pneus Medium (Médiums)", expanded=False):
-    m_b = st.number_input("Temps de base initial (s)", value=94.13, key='mb', step=0.1)
-    m_a = st.number_input("Usure linéaire (Paramètre a)", value=0.076, format="%.3f", key='ma', step=0.01)
-    m_b2 = st.number_input("Chute thermique (Paramètre b)", value=0.001, format="%.4f", key='mb2', step=0.001)
-    m_w = st.number_input("Pénalité de Warm-up (s)", value=2.0, step=0.5, key='mw')
+with st.sidebar.expander("🟡 Medium Tyres", expanded=False):
+    m_b = st.number_input("Base time (s) - Med", value=94.13, key='mb', step=0.1)
+    m_a = st.number_input("Parameter a - Med", value=0.076, format="%.3f", key='ma', step=0.01)
+    m_b2 = st.number_input("Parameter b - Med", value=0.001, format="%.4f", key='mb2', step=0.001)
+    m_w = st.number_input("Warm-up (s) - Med", value=2.0, step=0.5, key='mw')
 
-with st.sidebar.expander("⚪ Pneus Hard (Durs)", expanded=False):
-    h_b = st.number_input("Temps de base initial (s)", value=94.8, key='hb', step=0.1)
-    h_a = st.number_input("Usure linéaire (Paramètre a)", value=0.056, format="%.3f", key='ha', step=0.01)
-    h_b2 = st.number_input("Chute thermique (Paramètre b)", value=0.000, format="%.4f", key='hb2', step=0.001)
-    h_w = st.number_input("Pénalité de Warm-up (s)", value=3.5, step=0.5, key='hw')
+with st.sidebar.expander("⚪ Hard Tyres", expanded=False):
+    h_b = st.number_input("Base time (s) - Hard", value=94.8, key='hb', step=0.1)
+    h_a = st.number_input("Parameter a - Hard", value=0.056, format="%.3f", key='ha', step=0.01)
+    h_b2 = st.number_input("Parameter b - Hard", value=0.000, format="%.4f", key='hb2', step=0.001)
+    h_w = st.number_input("Warm-up (s) - Hard", value=3.5, step=0.5, key='hw')
 
 TIRE_MODELS = {
     'Soft':   {'base': s_b, 'a': s_a, 'b': s_b2, 'warmup': s_w},
@@ -172,18 +166,16 @@ def get_full_race_laps(strategy, custom_total_laps=TOTAL_LAPS):
     return np.array(lap_times)
 
 
-# ==========================================
-# GESTION DES PAGES
-# ==========================================
+# --- ROUTING ---
 
 if page == "🏠 Mission Control":
     st.title(f"🏠 Mission Control - {selected_circuit}")
-    st.markdown("Vue d'ensemble stratégique générée automatiquement par la Programmation Dynamique.")
+    st.markdown("Automated strategic overview generated by the Dynamic Programming Engine.")
     
     if sc_active:
-        st.warning(f"🚓 Alerte Safety Car : Active du tour {sc_start} à {sc_start + sc_duration - 1}.")
+        st.warning(f"🚓 Safety Car Alert: Active from lap {sc_start} to {sc_start + sc_duration - 1}.")
     
-    with st.spinner("Calcul de la stratégie mathématique parfaite en cours..."):
+    with st.spinner("Calculating DP optimum..."):
         strats = []
         for stops in [1, 2, 3]:
             s = optimize_all_strategies(TOTAL_LAPS, stops, TIRE_MODELS, sc_config, PIT_LOSS_TIME, deg_model, FUEL_EFFECT)
@@ -192,68 +184,62 @@ if page == "🏠 Mission Control":
         best = strats[0]
 
     c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Distance", f"{TOTAL_LAPS} Tours")
-    c2.metric("Meilleure Stratégie", " ➔ ".join(best['compounds']))
-    
-    # Nettoyage de l'affichage des tours
+    c1.metric("Distance", f"{TOTAL_LAPS} Laps")
+    c2.metric("Optimal Strategy", " ➔ ".join(best['compounds']))
     pits_clean = ", ".join(map(str, best['pit_laps']))
-    c3.metric("Fenêtres d'arrêts", f"Tours {pits_clean}")
-    c4.metric("Temps de course estimé", format_time(best['total_time']))
+    c3.metric("Pit Windows", f"Laps {pits_clean}")
+    c4.metric("Est. Race Time", format_time(best['total_time']))
     
     st.markdown("---")
-    st.subheader("📈 Projection de Rythme (Pace)")
+    st.subheader("📈 Pace Projection")
     
     fig_mc, ax_mc = plt.subplots(figsize=(14, 6))
     laps_mc = get_full_race_laps(best)
     
-    # Couleur adaptée pour le fond blanc
-    ax_mc.plot(np.arange(1, len(laps_mc)+1), laps_mc, label=f"Optimum Mathématique : {' ➔ '.join(best['compounds'])}", color="#2ca02c", lw=3)
+    ax_mc.plot(np.arange(1, len(laps_mc)+1), laps_mc, label=f"DP Optimum: {' ➔ '.join(best['compounds'])}", color="#2ca02c", lw=3)
     if sc_active: 
-        ax_mc.axvspan(sc_start, sc_start + sc_duration - 1, color='gold', alpha=0.3, label='Période Safety Car')
+        ax_mc.axvspan(sc_start, sc_start + sc_duration - 1, color='gold', alpha=0.3, label='Safety Car Period')
         
-    ax_mc.set_title(f"Simulation du rythme de course parfait - {selected_circuit}", fontsize=14, fontweight='bold', pad=15)
-    ax_mc.set_xlabel("Numéro du Tour", fontsize=12)
-    ax_mc.set_ylabel("Temps au tour (secondes)", fontsize=12)
+    ax_mc.set_title(f"Perfect Race Pace Simulation - {selected_circuit}", fontsize=14, fontweight='bold', pad=15)
+    ax_mc.set_xlabel("Lap Number", fontsize=12)
+    ax_mc.set_ylabel("Lap Time (s)", fontsize=12)
     ax_mc.legend(fontsize=11)
     st.pyplot(fig_mc)
     
     st.markdown("---")
-    st.subheader("📄 Rapport de Stratégie (Brief Pilote)")
-    st.info("Générez un rapport PDF contenant la stratégie optimale et le graphique de rythme, prêt à être imprimé ou partagé.")
+    st.subheader("📄 Strategy Report")
     
     pdf_bytes = generate_pdf_report(selected_circuit, best, TOTAL_LAPS, PIT_LOSS_TIME, format_time(best['total_time']), fig_mc)
     st.download_button(
-        label="📥 Télécharger le Brief Stratégique (PDF)",
+        label="📥 Download Strategy Brief (PDF)",
         data=pdf_bytes,
         file_name=f"Strategy_Brief_{selected_circuit}.pdf",
         mime="application/pdf",
         type="primary"
     )
 
-elif page == "🛠️ Constructeur de Stratégie":
-    st.title("🛠️ Constructeur et Comparateur de Stratégies")
-    st.markdown("Testez vos propres idées stratégiques et comparez-les visuellement et mathématiquement.")
+elif page == "🛠️ Strategy Builder":
+    st.title("🛠️ Strategy Builder & Comparator")
     
-    with st.expander("➕ Créer une stratégie manuelle", expanded=True):
-        st_stops = st.radio("Nombre d'arrêts", [1, 2, 3], horizontal=True)
+    with st.expander("➕ Build New Strategy", expanded=True):
+        st_stops = st.radio("Number of Stops", [1, 2, 3], horizontal=True)
         st_cols = st.columns(st_stops + 1)
-        current_build = [st_cols[i].selectbox(f"Relais {i+1}", ["Soft", "Medium", "Hard"], key=f"sel_{i}") for i in range(st_stops + 1)]
+        current_build = [st_cols[i].selectbox(f"Stint {i+1}", ["Soft", "Medium", "Hard"], key=f"sel_{i}") for i in range(st_stops + 1)]
         
-        if st.button("Ajouter à la comparaison", type="primary"):
+        if st.button("Add to Comparison", type="primary"):
             st.session_state.custom_strats.append(tuple(current_build))
             st.rerun()
 
     st.markdown("---")
-    st.subheader("🗂️ Stratégies Actuelles")
     if st.session_state.custom_strats:
         for i, strat in enumerate(st.session_state.custom_strats):
             col_s, col_b = st.columns([4, 1])
-            col_s.markdown(f"**Stratégie {i+1} :** {len(strat)-1} Arrêt(s) ➔ {' - '.join(strat)}")
-            if col_b.button("❌ Supprimer", key=f"del_{i}"):
+            col_s.markdown(f"**Strategy {i+1}:** {len(strat)-1} Stop(s) ➔ {' - '.join(strat)}")
+            if col_b.button("❌ Remove", key=f"del_{i}"):
                 st.session_state.custom_strats.pop(i)
                 st.rerun()
                 
-        if st.button("🗑️ Tout effacer"):
+        if st.button("🗑️ Clear all"):
             st.session_state.custom_strats = []
             st.rerun()
 
@@ -261,24 +247,21 @@ elif page == "🛠️ Constructeur de Stratégie":
         results = []
         for comps in st.session_state.custom_strats:
             t_best, pits = solve_dp(comps, TOTAL_LAPS, TIRE_MODELS, sc_config, PIT_LOSS_TIME, deg_model, FUEL_EFFECT)
-            # Nettoyage des chaînes pour l'affichage
             pits_clean = ", ".join(map(str, pits))
-            results.append({"label": f"{len(comps)-1} Stop(s) : {' ➔ '.join(comps)}", "comps": comps, "time": t_best, "pits_clean": pits_clean, "pits": pits})
+            results.append({"label": f"{len(comps)-1} Stop(s): {' ➔ '.join(comps)}", "comps": comps, "time": t_best, "pits_clean": pits_clean, "pits": pits})
             
         results.sort(key=lambda x: x["time"], reverse=True)
         
-        st.subheader("1. Évaluation Globale")
+        st.subheader("Global Evaluation")
         fig1, ax1 = plt.subplots(figsize=(12, max(4, len(results) * 0.8)))
-        # Couleur bleu standard seaborn
         ax1.barh([r["label"] for r in results], [r["time"] for r in results], color='#1f77b4')
         min_time, max_time = min([r["time"] for r in results]), max([r["time"] for r in results])
         ax1.set_xlim(min_time - 5, max_time + 5)
-        ax1.set_xlabel("Temps total de course (secondes)", fontsize=12)
+        ax1.set_xlabel("Total Race Time (s)", fontsize=12)
         st.pyplot(fig1)
 
-        st.subheader("2. Comparaison du Rythme (Pace)")
+        st.subheader("Pace Comparison")
         fig2, ax2 = plt.subplots(figsize=(14, 7))
-        # Palette de couleurs professionnelle
         colors = sns.color_palette("tab10", len(results))
         
         for i, res in enumerate(results): 
@@ -288,22 +271,20 @@ elif page == "🛠️ Constructeur de Stratégie":
         if sc_active: 
             ax2.axvspan(sc_start, sc_start + sc_duration - 1, color='gold', alpha=0.3, label='Safety Car')
             
-        ax2.set_xlabel("Numéro du Tour", fontsize=12)
-        ax2.set_ylabel("Temps au tour (s)", fontsize=12)
+        ax2.set_xlabel("Lap Number", fontsize=12)
+        ax2.set_ylabel("Lap Time (s)", fontsize=12)
         ax2.legend(fontsize=11)
         st.pyplot(fig2)
     else:
-        st.info("Aucune stratégie personnalisée. Ajoutez-en une via le constructeur ci-dessus.")
+        st.info("No custom strategies loaded.")
 
-elif page == "🎲 Monte-Carlo & Risques":
-    st.title("🎲 Simulation Monte-Carlo (Évaluation des Risques)")
-    st.markdown("La théorie c'est bien, la réalité c'est mieux. Simulez des milliers de courses en injectant le chaos du monde réel : **variance du rythme au tour (±0.3s)** et probabilité de **5% de rater un arrêt aux stands (+3s à +8s de perte)**.")
-    
-    n_sims = st.slider("Nombre de courses parallèles à simuler", 100, 5000, 1000)
+elif page == "🎲 Monte Carlo & Risk":
+    st.title("🎲 Monte Carlo Risk Assessment")
+    n_sims = st.slider("Simulations (N=)", 100, 5000, 1000)
     
     if st.session_state.custom_strats:
-        if st.button("Lancer la Matrice de Risque", type="primary"):
-            with st.spinner(f"Génération de {n_sims} futurs possibles..."):
+        if st.button("Run Simulation", type="primary"):
+            with st.spinner(f"Processing {n_sims} permutations..."):
                 fig, ax = plt.subplots(figsize=(14, 7))
                 stats = []
                 colors = sns.color_palette("tab10", len(st.session_state.custom_strats))
@@ -312,7 +293,7 @@ elif page == "🎲 Monte-Carlo & Risques":
                     t_best, pits = solve_dp(comps, TOTAL_LAPS, TIRE_MODELS, sc_config, PIT_LOSS_TIME, deg_model, FUEL_EFFECT)
                     times = run_monte_carlo(comps, pits, TOTAL_LAPS, TIRE_MODELS, PIT_LOSS_TIME, deg_model, FUEL_EFFECT, n_sims)
                     
-                    label_name = f"{len(comps)-1} Arrêt(s) : {' ➔ '.join(comps)}"
+                    label_name = f"{len(comps)-1} Stop(s): {' ➔ '.join(comps)}"
                     color = colors[i]
                     
                     ax.hist(times, bins=60, alpha=0.5, color=color, label=label_name, density=False)
@@ -320,50 +301,48 @@ elif page == "🎲 Monte-Carlo & Risques":
                     ax.axvline(median_time, color=color, linestyle='dashed', linewidth=2)
                     
                     stats.append({
-                        "Stratégie": label_name, 
-                        "Temps Idéal (DP)": format_time(t_best), 
-                        "Médiane (Réalité)": format_time(median_time),
-                        "Pire Scénario (P95)": format_time(np.percentile(times, 95)),
-                        "Risque Moyen Ajouté": f"+{(median_time - t_best):.2f} s"
+                        "Strategy": label_name, 
+                        "DP Ideal Time": format_time(t_best), 
+                        "MC Median": format_time(median_time),
+                        "P95 (Worst Case)": format_time(np.percentile(times, 95)),
+                        "Risk Delta": f"+{(median_time - t_best):.2f} s"
                     })
                     
-                ax.set_title(f"Distribution des temps de course ({n_sims} simulations)", fontsize=14, fontweight='bold', pad=15)
-                ax.set_xlabel("Temps total de course (secondes)", fontsize=12)
-                ax.set_ylabel("Fréquence d'occurrence", fontsize=12)
+                ax.set_title("Stochastic Race Time Distribution", fontsize=14, fontweight='bold', pad=15)
+                ax.set_xlabel("Total Race Time (s)", fontsize=12)
+                ax.set_ylabel("Frequency", fontsize=12)
                 ax.legend(fontsize=11)
                 st.pyplot(fig)
                 
-                st.markdown("#### 📊 Bilan de Robustesse")
                 st.table(pd.DataFrame(stats))
     else:
-        st.warning("⚠️ Ajoutez des stratégies via le **Constructeur de Stratégie** avant de lancer Monte-Carlo.")
+        st.warning("Configure strategies in the Strategy Builder first.")
 
-elif page == "📈 Modélisation Télémétrie":
-    st.title("📈 Fit Télémétrie (Machine Learning via SciPy)")
-    st.markdown("Extrayez les temps réels d'une session passée et laissez l'algorithme trouver les coefficients mathématiques parfaits pour vos pneus.")
+elif page == "📈 Telemetry Modeling":
+    st.title("📈 ML Curve Fitting (FastF1)")
     
     c1, c2, c3, c4 = st.columns(4)
-    y2 = c1.number_input("Année", 2018, 2026, 2023, key='y2')
+    y2 = c1.number_input("Year", 2018, 2026, 2023, key='y2')
     gp2 = c2.text_input("GP", "Silverstone", key='gp2')
-    d2 = c3.text_input("Pilote (ex: HAM)", "HAM", key='d2_tel')
-    comp2 = c4.selectbox("Gomme analysée", ["SOFT", "MEDIUM", "HARD"])
+    d2 = c3.text_input("Driver", "HAM", key='d2_tel')
+    comp2 = c4.selectbox("Compound", ["SOFT", "MEDIUM", "HARD"])
     
-    sess_type = st.selectbox("Type de Session", ["Race (R)", "Sprint (S)", "Practice 2 (FP2)"])
+    sess_type = st.selectbox("Session Type", ["Race (R)", "Sprint (S)", "Practice 2 (FP2)"])
     sess_code = re.search(r'\((.*?)\)', sess_type).group(1)
     
-    if st.button("📊 Analyser et Modéliser la Gomme", type="primary"):
-        with st.spinner("Téléchargement FastF1 et ajustement SciPy en cours..."):
+    if st.button("Run Fitting Algorithm", type="primary"):
+        with st.spinner("Fetching data & SciPy optim..."):
             session = load_fastf1_data(y2, gp2, sess_code)
             laps_driver = session.laps.pick_driver(d2).pick_compounds(comp2)
             
             if laps_driver.empty:
-                st.error("Aucune donnée trouvée pour ce pilote et cette gomme.")
+                st.error("No telemetry data found.")
             else:
                 longest_stint = laps_driver['Stint'].value_counts().idxmax()
                 stint_laps = laps_driver[laps_driver["Stint"] == longest_stint].pick_quicklaps()
                 
                 if len(stint_laps) < 3:
-                    st.error("Pas assez de tours propres pour entraîner le modèle mathématique.")
+                    st.error("Not enough clean laps to converge.")
                 else:
                     median = stint_laps['LapTime'].dt.total_seconds().median()
                     correct_laps = stint_laps[(stint_laps['LapTime'].dt.total_seconds() < median + 2) & (stint_laps["IsAccurate"] == 1)]
@@ -371,8 +350,8 @@ elif page == "📈 Modélisation Télémétrie":
                     tours_abs = correct_laps['LapNumber'].values
                     tours_rel = tours_abs - tours_abs.min()
                     t_carburant = tours_abs if sess_code in ['R', 'S'] else tours_rel
-                    temps_corriges = correct_laps['LapTime'].dt.total_seconds().values + (t_carburant * FUEL_EFFECT)
                     
+                    temps_corriges = correct_laps['LapTime'].dt.total_seconds().values + (t_carburant * FUEL_EFFECT)
                     popt_lin, popt_quad, popt_exp = fit_degradation_models(tours_rel, temps_corriges)
                     
                     fig, ax = plt.subplots(figsize=(14, 6))
@@ -380,16 +359,15 @@ elif page == "📈 Modélisation Télémétrie":
                     t_lisses_rel = np.linspace(min(tours_rel), max(tours_rel)+15, 300)
                     t_lisses_abs = t_lisses_rel + tours_abs.min()
                     
-                    ax.scatter(tours_abs, temps_corriges, color='teal', s=60, edgecolor='white', label='Temps Réels Corrigés (Dégradation pure)')
-                    ax.plot(t_lisses_abs, modele_lineaire(t_lisses_rel, *popt_lin), color='darkorange', linestyle=':', lw=2, label='Fit Linéaire')
-                    ax.plot(t_lisses_abs, modele_quadratique(t_lisses_rel, *popt_quad), color='crimson', linestyle='--', lw=2, label='Fit Quadratique')
-                    ax.plot(t_lisses_abs, modele_exponentiel(t_lisses_rel, *popt_exp), color='purple', lw=3, label='Fit Exponentiel')
+                    ax.scatter(tours_abs, temps_corriges, color='teal', s=60, edgecolor='white', label='Raw Data (Fuel adjusted)')
+                    ax.plot(t_lisses_abs, modele_lineaire(t_lisses_rel, *popt_lin), color='darkorange', linestyle=':', lw=2, label='Linear Fit')
+                    ax.plot(t_lisses_abs, modele_quadratique(t_lisses_rel, *popt_quad), color='crimson', linestyle='--', lw=2, label='Quadratic Fit')
+                    ax.plot(t_lisses_abs, modele_exponentiel(t_lisses_rel, *popt_exp), color='purple', lw=3, label='Exponential Fit')
                     
-                    ax.axvline(max(tours_abs), color="gray", linestyle="--", label="Fin des données réelles")
-                    
-                    ax.set_title(f"Ajustement Mathématique de la Dégradation ({comp2}) - {d2} ({gp2} {y2})", fontsize=14, fontweight='bold', pad=15)
-                    ax.set_xlabel("Numéro du Tour Absolu", fontsize=12)
-                    ax.set_ylabel("Temps au tour (s)", fontsize=12)
+                    ax.axvline(max(tours_abs), color="gray", linestyle="--")
+                    ax.set_title(f"Degradation curve: {comp2} - {d2} ({gp2} {y2})", fontsize=14, fontweight='bold', pad=15)
+                    ax.set_xlabel("Lap Number", fontsize=12)
+                    ax.set_ylabel("Lap Time (s)", fontsize=12)
                     ax.legend(fontsize=11)
                     st.pyplot(fig)
                     
@@ -397,77 +375,77 @@ elif page == "📈 Modélisation Télémétrie":
                     elif deg_model == "Exponentiel": base_v, a_v, b_v = popt_exp[0], popt_exp[1], popt_exp[2]
                     else: base_v, a_v, b_v = popt_quad[0], popt_quad[1], popt_quad[2]
                     
-                    st.success("Modélisation réussie ! Les paramètres ont été trouvés.")
-                    st.info("💡 Cliquez ci-dessous pour injecter ces données scientifiques directement dans la barre latérale pour la gomme étudiée.")
-                    
                     st.button(
-                        f"📥 Transférer les propriétés vers le pneu {comp2}", 
+                        f"Inject parameters to {comp2} model", 
                         on_click=apply_to_sidebar, 
                         args=(comp2, base_v, a_v, b_v), 
                         type="primary",
                         use_container_width=True
                     )
 
-elif page == "🥊 Face-à-Face & Validation":
-    st.title("✅ Validation (Backtesting) & Face-à-Face")
-    st.markdown("Comparez le modèle mathématique à la réalité, et analysez les batailles de rythme entre pilotes.")
+elif page == "🥊 Validation & H2H":
+    st.title("✅ Backtesting Engine & H2H")
     
     c1, c2, c3, c4 = st.columns(4)
-    y_val = c1.number_input("Année", 2018, 2026, 2024, key="y_val")
-    gp_val = c2.text_input("Grand Prix", "Bahrain", key="gp_val")
-    d1 = c3.text_input("Pilote Principal (ex: VER)", "VER", key="d1_val")
-    d2 = c4.text_input("Adversaire (ex: PER)", "PER", key="d2_val")
+    y_val = c1.number_input("Year", 2018, 2026, 2024, key="y_val")
+    gp_val = c2.text_input("GP", "Bahrain", key="gp_val")
+    d1 = c3.text_input("Driver 1", "VER", key="d1_val")
+    d2 = c4.text_input("Driver 2", "PER", key="d2_val")
     
-    if st.button("⚖️ Lancer l'Analyse Croisée", type="primary"):
-        with st.spinner("Récupération Télémétrie FastF1 & Calculs..."):
+    if st.button("Run Audit", type="primary"):
+        with st.spinner("Processing telemetry..."):
             session = load_fastf1_data(y_val, gp_val, "R")
             actual_strat = get_actual_strategy(session, d1)
             
-            st.subheader(f"1. Validation de la Stratégie ({d1})")
+            st.subheader(f"Strategy Audit ({d1})")
             if actual_strat:
                 valid_compounds = ["Soft", "Medium", "Hard"]
                 if not all(c in valid_compounds for c in actual_strat["compounds"]):
-                    st.warning("Le pilote a utilisé des pneus pluie. Backtesting impossible (Slicks uniquement).")
+                    st.warning("Non-slick tyres detected. Skipping validation.")
                 else:
                     laps_done = actual_strat["total_laps"]
                     t_actual = evaluate_fixed_strategy(actual_strat["compounds"], actual_strat["pit_laps"], laps_done, TIRE_MODELS, sc_config, PIT_LOSS_TIME, deg_model, FUEL_EFFECT)
-                    opt = optimize_all_strategies(laps_done, len(actual_strat["compounds"])-1, TIRE_MODELS, sc_config, PIT_LOSS_TIME, deg_model, FUEL_EFFECT)
                     
-                    # Formattage propre des listes sans np.int64
+                    strats_val = []
+                    for stops in [1, 2, 3]:
+                        s = optimize_all_strategies(laps_done, stops, TIRE_MODELS, sc_config, PIT_LOSS_TIME, deg_model, FUEL_EFFECT)
+                        if s: strats_val.append(s)
+                    strats_val.sort(key=lambda x: x['total_time'])
+                    opt = strats_val[0]
+                    
                     act_pits_clean = ", ".join(map(str, actual_strat['pit_laps']))
                     opt_pits_clean = ", ".join(map(str, opt['pit_laps']))
                     
                     col_a, col_b, col_c = st.columns(3)
-                    col_a.markdown(f"**🏎️ Réalité ({d1})**<br>Gommes : {' ➔ '.join(actual_strat['compounds'])}<br>Pits : T{act_pits_clean}<br>Temps Modèle : **{format_time(t_actual)}**", unsafe_allow_html=True)
-                    col_b.markdown(f"**💻 Optimum Mathématique**<br>Gommes : {' ➔ '.join(opt['compounds'])}<br>Pits : T{opt_pits_clean}<br>Temps Calculé : **{format_time(opt['total_time'])}**", unsafe_allow_html=True)
+                    col_a.markdown(f"**Actual ({d1})**<br>Comps: {' ➔ '.join(actual_strat['compounds'])}<br>Pits: L{act_pits_clean}<br>Time: **{format_time(t_actual)}**", unsafe_allow_html=True)
+                    col_b.markdown(f"**DP Optimum**<br>Comps: {' ➔ '.join(opt['compounds'])}<br>Pits: L{opt_pits_clean}<br>Time: **{format_time(opt['total_time'])}**", unsafe_allow_html=True)
                     
                     delta = t_actual - opt['total_time']
                     if delta < 0.5:
-                        col_c.metric("Écart", f"{delta:.2f} s", delta="Parfait !", delta_color="normal")
+                        col_c.metric("Delta", f"{delta:.2f} s", delta="Optimal", delta_color="normal")
                     else:
-                        col_c.metric("Écart", f"+{delta:.2f} s", delta="Améliorable", delta_color="inverse")
+                        col_c.metric("Delta", f"+{delta:.2f} s", delta="Suboptimal", delta_color="inverse")
                     
                     fig_val, ax_val = plt.subplots(figsize=(14, 6))
                     laps_act_plot = get_full_race_laps(actual_strat, custom_total_laps=laps_done)
                     laps_opt_plot = get_full_race_laps(opt, custom_total_laps=laps_done)
                     
-                    # Sur fond blanc, la ligne blanche devient noire pour être visible
-                    ax_val.plot(np.arange(1, len(laps_act_plot)+1), laps_act_plot, label=f"Stratégie Réelle de {d1}", color="black", lw=2, linestyle='--')
-                    ax_val.plot(np.arange(1, len(laps_opt_plot)+1), laps_opt_plot, label="Optimum DP", color="#2ca02c", lw=3)
-                    ax_val.set_title(f"Superposition Réalité vs Optimisation Mathématique", fontsize=14, fontweight='bold', pad=15)
-                    ax_val.set_xlabel("Tour", fontsize=12)
-                    ax_val.set_ylabel("Temps (s)", fontsize=12)
+                    ax_val.plot(np.arange(1, len(laps_act_plot)+1), laps_act_plot, label=f"Actual Pace ({d1})", color="black", lw=2, linestyle='--')
+                    ax_val.plot(np.arange(1, len(laps_opt_plot)+1), laps_opt_plot, label="DP Optimum Pace", color="#2ca02c", lw=3)
+                    ax_val.set_title("Actual vs Theoretical Pace", fontsize=14, fontweight='bold', pad=15)
+                    ax_val.set_xlabel("Lap Number", fontsize=12)
+                    ax_val.set_ylabel("Lap Time (s)", fontsize=12)
                     ax_val.legend(fontsize=11)
                     st.pyplot(fig_val)
             else:
-                st.error("Données stratégiques réelles introuvables.")
+                st.error("Actual strategy data not found.")
 
             st.markdown("---")
-            st.subheader(f"2. Bataille de Rythme : {d1} vs {d2}")
+            st.subheader(f"Head-to-Head: {d1} vs {d2}")
             laps_d1, laps_d2 = get_head_to_head_laps(session, d1, d2)
             
             if laps_d1.empty or laps_d2.empty:
-                st.error("Télémétrie manquante pour l'un des pilotes.")
+                st.error("Missing telemetry for one driver.")
             else:
                 med_d1 = laps_d1['LapTime'].dt.total_seconds().median()
                 laps_d1_clean = laps_d1[laps_d1['LapTime'].dt.total_seconds() < med_d1 + 5]
@@ -478,29 +456,27 @@ elif page == "🥊 Face-à-Face & Validation":
                 ax_h2h.plot(laps_d1_clean['LapNumber'], laps_d1_clean['LapTime'].dt.total_seconds(), label=d1, color='teal', lw=2, marker='o', markersize=4)
                 ax_h2h.plot(laps_d2_clean['LapNumber'], laps_d2_clean['LapTime'].dt.total_seconds(), label=d2, color='darkorange', lw=2, marker='x', markersize=4)
                 
-                ax_h2h.set_title(f"Face-à-Face en piste : {d1} vs {d2}", fontsize=14, fontweight='bold', pad=15)
-                ax_h2h.set_xlabel("Tour", fontsize=12)
-                ax_h2h.set_ylabel("Temps au tour (s)", fontsize=12)
+                ax_h2h.set_xlabel("Lap Number", fontsize=12)
+                ax_h2h.set_ylabel("Lap Time (s)", fontsize=12)
                 ax_h2h.legend(fontsize=11)
                 st.pyplot(fig_h2h)
 
-elif page == "🔄 Historique des Stratégies":
-    st.title("🔄 Historique Global des Stratégies (Session)")
-    st.markdown("Visualisez les stratégies de pneus réellement adoptées par **tous les pilotes** lors d'une session passée.")
+elif page == "🔄 Track History":
+    st.title("🔄 Race Strategy History")
     
     c1, c2, c3 = st.columns(3)
-    y_hist = c1.number_input("Année", 2018, 2026, 2024, key="y_hist")
-    gp_hist = c2.text_input("Grand Prix", "Bahrain", key="gp_hist")
+    y_hist = c1.number_input("Year", 2018, 2026, 2024, key="y_hist")
+    gp_hist = c2.text_input("GP", "Bahrain", key="gp_hist")
     sess_hist = c3.selectbox("Session", ["Race (R)", "Sprint (S)", "Qualifying (Q)"], key="s_hist")
     
     sess_code = re.search(r'\((.*?)\)', sess_hist).group(1)
     
-    if st.button("📊 Afficher la Grille des Stratégies", type="primary"):
-        with st.spinner("Analyse du peloton via FastF1..."):
+    if st.button("Load Grid Data", type="primary"):
+        with st.spinner("Loading driver stints..."):
             try:
                 session = load_fastf1_data(y_hist, gp_hist, sess_code)
                 if session.laps.empty:
-                    st.error("Aucune donnée de tour trouvée.")
+                    st.error("No lap data available.")
                 else:
                     fig, ax = plt.subplots(figsize=(12, 10))
                     
@@ -520,17 +496,16 @@ elif page == "🔄 Historique des Stratégies":
                             prev += r["LapNumber"]
                             
                     ax.invert_yaxis()
-                    ax.set_title(f"Historique des Relais - {gp_hist} {y_hist} ({sess_code})", fontsize=14, fontweight='bold', pad=15)
-                    ax.set_xlabel("Numéro du Tour", fontsize=12)
+                    ax.set_title(f"Stint History - {gp_hist} {y_hist}", fontsize=14, fontweight='bold', pad=15)
+                    ax.set_xlabel("Lap Number", fontsize=12)
                     st.pyplot(fig)
             except Exception as e:
-                st.error(f"Erreur : {e}")
+                st.error(f"Error : {e}")
 
-elif page == "🌍 Base de données Circuits":
-    st.title("🌍 Encyclopédie des Circuits F1")
-    st.markdown("Consultez les informations clés pour configurer rapidement votre stratégie.")
+elif page == "🌍 Track Database":
+    st.title("🌍 Track Database")
     
     df = pd.DataFrame.from_dict(CIRCUITS_DATA, orient='index').reset_index().rename(
-        columns={"index": "Circuit", "laps": "Tours", "pit_loss": "Perte aux Stands (s)", "length": "Longueur (km)", "abrasion": "Abrasion", "record": "Record du Tour"}
+        columns={"index": "Track", "laps": "Laps", "pit_loss": "Pit Loss (s)", "length": "Length (km)", "abrasion": "Abrasion", "record": "Lap Record"}
     )
     st.dataframe(df, use_container_width=True, hide_index=True)
